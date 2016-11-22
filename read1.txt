@@ -1,54 +1,57 @@
 from __future__ import print_function
-import boto3
-import botocore
+import botocore.session
 import re
 from datetime import datetime, timedelta
 
 AWSREGION = 'us-west-2'
-ACCOUNT_ID_PATTERN = re.compile(ur'(arn:aws:.*::)([0-9]+)')
-uncheck_db = ['hcdb']
 event_datetime = datetime.strftime(datetime.now()+timedelta(days=-1), '%Y-%m-%d')
+session = botocore.session.get_session()
+client = session.create_client('rds', region_name=AWSREGION)
 
 print('Loading function ' + datetime.now().time().isoformat())
-rds = boto3.client('rds', region_name=AWSREGION)
 
-def get_account_id():
-    account_id = None
-    try:
-        iam = boto3.client('iam')
-        response = iam.get_user()
-        arn = response['User']['Arn']
-        account_id = re.search(ACCOUNT_ID_PATTERN, arn).groups()[1]
-        print('AWS account id: {0}'.format(account_id))
-    except botocore.exceptions.ClientError as e:
-        account_id = re.search(r'(arn:aws:sts::)([0-9]+)', str(e)).groups()[1]
-    return account_id
+def check_being_snapshot(dbInstanceIdentifier):
+    paginator = client.get_paginator('describe_db_snapshots')
+    operation_parameters = {'DBInstanceIdentifier':dbInstanceIdentifier,
+                            'SnapshotType':'manual',}
+    page_iterator = paginator.paginate(**operation_parameters)
+    for page in page_iterator:
+        for snapshot in page['DBSnapshots']:
+            if snapshot['Status'] == 'available':
+                if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') >= event_datetime:
+                    return True
+        return False
 
-def check_being_snapshot(dbInstanceIdentifier, check_results=[]):
-    snapshots = rds.describe_db_snapshots(DBInstanceIdentifier=dbInstanceIdentifier)
-    for snapshot in snapshots['DBSnapshots']:
-        if snapshot['Status'] == 'available':
-            if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') >= event_datetime and snapshot['SnapshotType'] == 'manual':
-                return True
-                break
-    return False
 
 def lambda_handler(event, context):
-    # TODO implement
-    check_results = []
-    send_alert = False
-    check_results.append('AWS account id: ' + get_account_id())
-    check_results.append('Region name: ' +  AWSREGION)
-    instances = rds.describe_db_instances()
-    for db_instance in instances['DBInstances']:
-        db_instance_identifier = db_instance['DBInstanceIdentifier']
-        if db_instance_identifier not in uncheck_db:
-            if not check_being_snapshot(db_instance_identifier, check_results=check_results):
-                check_results.append('The db-instance "' + db_instance_identifier + '" snapshot was not found on ' + event_datetime)
-                send_alert = True
-            else:
-                check_results.append('The db-instance "' + db_instance_identifier + '" snapshot is OK')
-    print("\n".join(map(str, check_results)))
+    aws_account_id = context.invoked_function_arn.split(":")[4]
+
+    envs = {
+        'XXXXXX': 'HC-DevOps',
+        'XXXXXX': 'HC-Prod',
+        'XXXXXX': 'Test'
+        };
+    send_results = []
+    send_alert = False    
+    uncheck_db = []
+    if aws_account_id in envs:
+        send_results.append('AWS account id: ' + envs[aws_account_id])
+    else:
+        send_results.append('Unknown AWS account id: ' + aws_account_id)
+
+    send_results.append('Region name: ' +  AWSREGION)
+    paginator = client.get_paginator('describe_db_instances')
+    for response_iterator in paginator.paginate():
+        for db_instance in response_iterator['DBInstances']:
+            db_instance_identifier = db_instance['DBInstanceIdentifier']
+            if db_instance_identifier not in uncheck_db:
+                if not check_being_snapshot(db_instance_identifier):
+                    send_results.append('The db-instance "' + db_instance_identifier + '" snapshot was not found on ' + event_datetime)
+                    send_alert = True
+
     if send_alert:
         print('Send to Jira')
-    return check_results
+        print("\n".join(map(str, send_results)))
+        print('-----------------')
+
+    return send_results
