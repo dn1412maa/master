@@ -12,8 +12,8 @@ print('Loading function ' + datetime.now().time().isoformat())
 def check_being_snapshot(dbInstanceIdentifier):
     client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_snapshots')
-    operation_parameters = {'DBInstanceIdentifier':dbInstanceIdentifier,
-                            'SnapshotType':'manual',}
+    operation_parameters = {'DBInstanceIdentifier': dbInstanceIdentifier,
+                            'SnapshotType': 'manual'}
     page_iterator = paginator.paginate(**operation_parameters)
     for page in page_iterator:
         for snapshot in page['DBSnapshots']:
@@ -28,7 +28,7 @@ def lambda_handler(event, context):
         'xxxxx': 'HC-DevOps',
         'xxxxx': 'HC-Prod',
         'xxxxx': 'Test'
-        };
+        }
     send_results = []
     uncheck_db = []
 
@@ -43,9 +43,10 @@ def lambda_handler(event, context):
                     send_results.append('The db-instance "' + db_instance_identifier + '" snapshot was not found on ' + event_datetime)
 
     if len(send_results):
-        send_results.insert(0, ('Region name: ' +  awsRegion))
-        send_results.insert(0, (envs.get(aws_account_id, 'Unknown AWS account id: '+aws_account_id)))
+        send_results.insert(0, ('Region name: ' + awsRegion))
+        send_results.insert(0, (envs.get(aws_account_id, 'Unknown AWS account id: ' + aws_account_id)))
         print('Send to Jira')
         print("\n".join(map(str, send_results)))
 
     return send_results
+    
