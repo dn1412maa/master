@@ -1,16 +1,16 @@
 from __future__ import print_function
 import botocore.session
+import boto3
 import re
 from datetime import datetime, timedelta
 
-AWSREGION = 'us-west-2'
+awsRegion = 'us-west-2'
 event_datetime = datetime.strftime(datetime.now()+timedelta(days=-1), '%Y-%m-%d')
-session = botocore.session.get_session()
-client = session.create_client('rds', region_name=AWSREGION)
-
 print('Loading function ' + datetime.now().time().isoformat())
 
+
 def check_being_snapshot(dbInstanceIdentifier):
+    client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_snapshots')
     operation_parameters = {'DBInstanceIdentifier':dbInstanceIdentifier,
                             'SnapshotType':'manual',}
@@ -18,29 +18,22 @@ def check_being_snapshot(dbInstanceIdentifier):
     for page in page_iterator:
         for snapshot in page['DBSnapshots']:
             if snapshot['Status'] == 'available':
-                if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') <= event_datetime:
+                if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') >= event_datetime:
                     return True
         return False
 
 
 def lambda_handler(event, context):
-    # Get Account ID from lambda function arn in the context
-    aws_account_id = context.invoked_function_arn.split(":")[4]
-
     envs = {
-        'XXXXXX': 'HC-DevOps',
-        'XXXXXX': 'HC-Prod',
-        'XXXXXX': 'Test'
+        'xxxxx': 'HC-DevOps',
+        'xxxxx': 'HC-Prod',
+        'xxxxx': 'Test'
         };
     send_results = []
-    send_alert = False    
     uncheck_db = []
-    if aws_account_id in envs:
-        send_results.append('AWS account id: ' + envs[aws_account_id])
-    else:
-        send_results.append('Unknown AWS account id: ' + aws_account_id)
 
-    send_results.append('Region name: ' +  AWSREGION)
+    aws_account_id = context.invoked_function_arn.split(":")[4]
+    client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_instances')
     for response_iterator in paginator.paginate():
         for db_instance in response_iterator['DBInstances']:
@@ -48,11 +41,11 @@ def lambda_handler(event, context):
             if db_instance_identifier not in uncheck_db:
                 if not check_being_snapshot(db_instance_identifier):
                     send_results.append('The db-instance "' + db_instance_identifier + '" snapshot was not found on ' + event_datetime)
-                    send_alert = True
 
-    if send_alert:
+    if len(send_results):
+        send_results.insert(0, ('Region name: ' +  awsRegion))
+        send_results.insert(0, (envs.get(aws_account_id, 'Unknown AWS account id: '+aws_account_id)))
         print('Send to Jira')
         print("\n".join(map(str, send_results)))
-        print('-----------------')
 
     return send_results
