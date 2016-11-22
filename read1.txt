@@ -24,6 +24,7 @@ def check_being_snapshot(dbInstanceIdentifier):
 
 
 def lambda_handler(event, context):
+    # Get Account ID from lambda function arn in the context
     aws_account_id = context.invoked_function_arn.split(":")[4]
 
     envs = {
