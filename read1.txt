@@ -10,7 +10,7 @@ event_datetime = datetime.strftime(
 print('Loading function ' + datetime.now().time().isoformat())
 
 
-def send_alert_to_jira(data):
+def send_alert_to_jira(description):
     """
     Function sends message to Jira.
     """
@@ -30,7 +30,7 @@ def send_alert_to_jira(data):
                     'key': jiraIssueKey
                 },
                 'summary': 'RDS Snapshot was not found',
-                'description': ("\n".join(map(str, data))),
+                'description': ("\n".join(map(str, description))),
                 'issuetype': {
                     'name': 'Task'
                 },
@@ -44,7 +44,7 @@ def send_alert_to_jira(data):
         print("Exception during sending alert to Jira: {0}".format(str(e)))
 
 
-def check_being_snapshot(dbInstanceIdentifier):
+def check_snaphot_presence(dbInstanceIdentifier):
     client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_snapshots')
     operation_parameters = {'DBInstanceIdentifier': dbInstanceIdentifier,
@@ -73,7 +73,7 @@ def lambda_handler(event, context):
         for db_instance in response_iterator['DBInstances']:
             db_instance_identifier = db_instance['DBInstanceIdentifier']
             if db_instance_identifier not in uncheck_db:
-                if not check_being_snapshot(db_instance_identifier):
+                if not check_snaphot_presence(db_instance_identifier):
                     send_results.append('The db-instance "' + db_instance_identifier + '" snapshot was not found on ' + event_datetime)
 
     if len(send_results):
