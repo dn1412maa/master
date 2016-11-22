@@ -80,8 +80,8 @@ def lambda_handler(event, context):
         send_results.insert(0, ('Region name: ' + awsRegion))
         aws_account_id = context.invoked_function_arn.split(":")[4]
         send_results.insert(0, (envs.get(aws_account_id, 'Unknown AWS account id: ' + aws_account_id)))
-        print('Send to Jira')
         print("\n".join(map(str, send_results)))
+        send_alert_to_jira(send_results)
 
     return send_results
     
