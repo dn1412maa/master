@@ -1,13 +1,47 @@
 from __future__ import print_function
-import botocore.session
 import boto3
-import re
+import base64
+from urllib2 import Request, urlopen, HTTPError
 from datetime import datetime, timedelta
 
 awsRegion = 'us-west-2'
 event_datetime = datetime.strftime(
     datetime.now()+timedelta(days=-1), '%Y-%m-%d')
 print('Loading function ' + datetime.now().time().isoformat())
+
+
+def send_alert_to_jira(data):
+    """
+    Function sends message to Jira.
+    """
+    jiraIssueKey = 'PROJ'
+    jiraUrl = 'http://10.0.0.0:8080/rest/api/2/issue/'
+    jiraUsername = 'xxxx'
+    jiraPassword = 'xxxx'
+    base64string = base64.encodestring('%s:%s' % (jiraUsername, jiraPassword)).replace('\n', '')
+    jiraHeaders = {
+        "content-type": "application/json",
+        "Authorization": "Basic %s" % base64string
+        }
+
+    jiraReqBody = {
+            'fields': {
+                'project': {
+                    'key': jiraIssueKey
+                },
+                'summary': 'RDS Snapshot was not found',
+                'description': ("\n".join(map(str, data))),
+                'issuetype': {
+                    'name': 'Task'
+                },
+            }
+        }
+
+    try:
+        request = Request(jiraUrl, headers=jiraHeaders, data=json.dumps(jiraReqBody))
+        responce = urlopen(request)
+    except HTTPError as e:
+        print("Exception during sending alert to Jira: {0}".format(str(e)))
 
 
 def check_being_snapshot(dbInstanceIdentifier):
