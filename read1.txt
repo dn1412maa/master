@@ -18,7 +18,7 @@ def check_being_snapshot(dbInstanceIdentifier):
     for page in page_iterator:
         for snapshot in page['DBSnapshots']:
             if snapshot['Status'] == 'available':
-                if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') >= event_datetime:
+                if datetime.strftime(snapshot['SnapshotCreateTime'], '%Y-%m-%d') <= event_datetime:
                     return True
         return False
 
