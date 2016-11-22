@@ -5,7 +5,8 @@ import re
 from datetime import datetime, timedelta
 
 awsRegion = 'us-west-2'
-event_datetime = datetime.strftime(datetime.now()+timedelta(days=-1), '%Y-%m-%d')
+event_datetime = datetime.strftime(
+    datetime.now()+timedelta(days=-1), '%Y-%m-%d')
 print('Loading function ' + datetime.now().time().isoformat())
 
 
@@ -31,7 +32,6 @@ def lambda_handler(event, context):
         }
     send_results = []
     uncheck_db = []
-
 
     client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_instances')
