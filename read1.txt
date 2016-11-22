@@ -32,7 +32,7 @@ def lambda_handler(event, context):
     send_results = []
     uncheck_db = []
 
-    aws_account_id = context.invoked_function_arn.split(":")[4]
+
     client = boto3.client('rds', region_name=awsRegion)
     paginator = client.get_paginator('describe_db_instances')
     for response_iterator in paginator.paginate():
@@ -44,6 +44,7 @@ def lambda_handler(event, context):
 
     if len(send_results):
         send_results.insert(0, ('Region name: ' + awsRegion))
+        aws_account_id = context.invoked_function_arn.split(":")[4]
         send_results.insert(0, (envs.get(aws_account_id, 'Unknown AWS account id: ' + aws_account_id)))
         print('Send to Jira')
         print("\n".join(map(str, send_results)))
